@@ -95,7 +95,10 @@
       progressLabel: "%s / %s levels · %s / %s stars",
       confirmYes: "Yes, do it", cancel: "Cancel",
       fillerNote: "+ %s placeholder file(s) written by plain `git commit`.",
-      emptyTree: "The working tree is empty."
+      emptyTree: "The working tree is empty.",
+      studyGuideBtn: "Study Guide", studyGuideTitle: "Study guide",
+      studyGuideBlurb: "Every level's reference answer and the reasoning behind it — read ahead, or review after playing.",
+      answerLabel: "Answer:", whyLabel: "Why:"
     },
     zh: {
       sandbox: "自由模式", wipe: "清空进度", mapTitle: "关卡地图", badgesTitle: "徽章",
@@ -130,7 +133,10 @@
       progressLabel: "%s / %s 关 · %s / %s 星",
       confirmYes: "确定", cancel: "取消",
       fillerNote: "另有 %s 个由 `git commit` 自动生成的占位文件。",
-      emptyTree: "工作区是空的。"
+      emptyTree: "工作区是空的。",
+      studyGuideBtn: "学习指导", studyGuideTitle: "学习指导",
+      studyGuideBlurb: "每一关的参考答案及其原理——可以先读一遍，也可以打完再复习。",
+      answerLabel: "答案：", whyLabel: "解析："
     }
   };
 
@@ -191,24 +197,47 @@
     return { cur, next };
   }
 
+  let lastXpShown = null;
+
   function renderHeader() {
     const { cur, next } = rankFor(progress.xp);
     $("#gq-rank").textContent = state.lang === "zh" ? cur.zh : cur.en;
     $("#gq-rank-zh").textContent = state.lang === "zh" ? "(" + cur.en + ")" : "";
     const floor = cur.at, ceil = next ? next.at : cur.at + 400;
     const pct = Math.min(100, Math.round(((progress.xp - floor) / (ceil - floor)) * 100));
-    $("#gq-xp-now").textContent = progress.xp;
     $("#gq-xp-next").textContent = ceil;
     $("#gq-xp-bar").style.width = pct + "%";
+
+    const target = progress.xp;
+    const from = lastXpShown;
+    lastXpShown = target;
+    if (from == null || from === target) {
+      $("#gq-xp-now").textContent = target;
+      return;
+    }
+    const bar = $("#gq-xp-bar").parentElement;
+    bar.classList.remove("flash");
+    void bar.offsetWidth;   // restart the flash animation on repeated gains
+    bar.classList.add("flash");
+    const start = performance.now();
+    const dur = 500;
+    const ease = (k) => 1 - Math.pow(1 - k, 3);
+    const step = (now) => {
+      const k = Math.min(1, (now - start) / dur);
+      $("#gq-xp-now").textContent = Math.round(from + (target - from) * ease(k));
+      if (k < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
   }
 
-  function renderBadges() {
+  function renderBadges(justEarned) {
     const box = $("#gq-badges");
     box.innerHTML = "";
+    const justIds = new Set((justEarned || []).map((b) => b.id));
     for (const b of BADGES) {
       const earned = progress.badges.includes(b.id);
       const el = document.createElement("span");
-      el.className = "gq-badge" + (earned ? " earned" : "");
+      el.className = "gq-badge" + (earned ? " earned" : "") + (justIds.has(b.id) ? " just-earned" : "");
       el.textContent = (earned ? "★ " : "☆ ") + (state.lang === "zh" ? b.zh : b.en);
       el.title = tx(b.hint);
       box.appendChild(el);
@@ -221,7 +250,7 @@
       if (progress.badges.includes(b.id)) continue;
       if (b.test(progress)) { progress.badges.push(b.id); gained.push(b); }
     }
-    if (gained.length) { saveProgress(); renderBadges(); }
+    if (gained.length) { saveProgress(); renderBadges(gained); }
     return gained;
   }
 
@@ -585,18 +614,43 @@
     showComplete(lv, st, delta, newBadges, already);
   }
 
+  const CONFETTI_COLORS = ["#38bdf8", "#a78bfa", "#f472b6", "#fbbf24", "#34d399", "#fb7185"];
+
+  function spawnConfetti(root) {
+    const box = document.createElement("div");
+    box.className = "gq-confetti";
+    const n = 30;
+    for (let i = 0; i < n; i++) {
+      const piece = document.createElement("i");
+      piece.style.left = (Math.random() * 100).toFixed(1) + "%";
+      piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+      piece.style.animationDelay = (Math.random() * 0.25).toFixed(2) + "s";
+      piece.style.animationDuration = (1.4 + Math.random() * 0.9).toFixed(2) + "s";
+      piece.style.setProperty("--gq-drift", ((Math.random() - 0.5) * 140).toFixed(0) + "px");
+      box.appendChild(piece);
+    }
+    root.appendChild(box);
+    setTimeout(() => box.remove(), 2600);
+  }
+
   function showComplete(lv, st, xp, badges, already) {
     const nextIndex = lv.index + 1 < LEVELS.length ? lv.index + 1 : null;
     const root = $("#gq-modal-root");
+    const starsHtml = Array.from({ length: 3 }, (_, i) => {
+      const filled = i < st;
+      return '<span class="gq-star" style="animation-delay:' + (i * 0.12).toFixed(2) + 's">' +
+        (filled ? "★" : "☆") + "</span>";
+    }).join("");
     root.innerHTML =
       '<div class="gq-modal-back"><div class="gq-modal">' +
       "<h2>" + esc(already ? t("solvedAgain") : t("solved")) + "</h2>" +
-      '<div class="gq-stars">' + "★".repeat(st) + "☆".repeat(3 - st) + "</div>" +
+      '<div class="gq-stars">' + starsHtml + "</div>" +
       '<div class="gq-xp-gain">' + esc(fmt(t("xpGain"), xp)) + "</div>" +
       "<p>" + mono(tx(lv.goal)) + "</p>" +
       (badges.length
         ? '<div class="gq-new-badges">' + esc(t("newBadge")) + " " +
-          badges.map((b) => '<span class="gq-badge earned">★ ' + esc(state.lang === "zh" ? b.zh : b.en) + "</span>").join(" ") +
+          badges.map((b, i) => '<span class="gq-badge earned" style="animation-delay:' + (0.35 + i * 0.12).toFixed(2) + 's">★ ' +
+            esc(state.lang === "zh" ? b.zh : b.en) + "</span>").join(" ") +
           "</div>"
         : "") +
       (nextIndex == null ? "<p>" + esc(t("allDone")) + "</p>" : "") +
@@ -605,6 +659,7 @@
       '<button class="gq-btn" id="gq-replay">' + esc(t("replay")) + "</button>" +
       '<button class="gq-btn ghost" id="gq-close">' + esc(t("close")) + "</button>" +
       "</div></div></div>";
+    spawnConfetti(root);
 
     const close = () => { root.innerHTML = ""; $("#gq-input").focus(); };
     if ($("#gq-next")) $("#gq-next").addEventListener("click", () => { close(); loadLevel(nextIndex); });
@@ -687,6 +742,32 @@
       $("#gq-no").addEventListener("click", () => done(false));
       $("#gq-yes").focus({ preventScroll: true });
     });
+  }
+
+  function showStudyGuide() {
+    const root = $("#gq-modal-root");
+    const body = WORLDS.map((w) => {
+      const levels = LEVELS.filter((l) => l.world === w.id).map((lv) =>
+        '<div class="gq-guide-level">' +
+        '<div class="gq-guide-level-head"><span class="gq-lv-id">' + lv.id + '</span><b>' + esc(tx(lv.name)) + "</b></div>" +
+        '<p class="gq-guide-brief">' + mono(tx(lv.brief)) + "</p>" +
+        '<div class="gq-guide-goal">' + esc(t("goalLabel")) + " " + mono(tx(lv.goal)) + "</div>" +
+        '<div class="gq-guide-answer"><b>' + esc(t("answerLabel")) + '</b><pre>' + esc(lv.solution.join("\n")) + "</pre></div>" +
+        (lv.hints.length
+          ? '<div class="gq-guide-why"><b>' + esc(t("whyLabel")) + "</b><ul>" +
+            lv.hints.map((h) => "<li>" + mono(tx(h)) + "</li>").join("") + "</ul></div>"
+          : "") +
+        "</div>").join("");
+      return '<div class="gq-guide-world"><h3>' + esc(tx(w.name)) + "</h3>" + levels + "</div>";
+    }).join("");
+    root.innerHTML =
+      '<div class="gq-modal-back"><div class="gq-modal gq-guide-modal">' +
+      "<h2>" + esc(t("studyGuideTitle")) + "</h2>" +
+      '<p style="margin-top:-4px">' + esc(t("studyGuideBlurb")) + "</p>" +
+      '<div class="gq-guide">' + body + "</div>" +
+      '<div class="gq-modal-actions"><button class="gq-btn primary" id="gq-close">' + esc(t("close")) + "</button></div>" +
+      "</div></div>";
+    $("#gq-close").addEventListener("click", () => { root.innerHTML = ""; $("#gq-input").focus(); });
   }
 
   function showCheats() {
@@ -805,6 +886,7 @@
     $("#gq-restart").addEventListener("click", () => loadLevel(state.sandbox ? "sandbox" : state.levelIndex));
     $("#gq-solution").addEventListener("click", playSolution);
     $("#gq-cheats").addEventListener("click", showCheats);
+    $("#gq-guide").addEventListener("click", showStudyGuide);
     $("#gq-sandbox").addEventListener("click", () => loadLevel("sandbox"));
     if ($("#gq-report-btn")) $("#gq-report-btn").addEventListener("click", sendReport);
     $("#gq-lang").addEventListener("click", () => {
