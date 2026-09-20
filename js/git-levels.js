@@ -26,6 +26,14 @@
       blurb: { en: "reset, revert, detached HEAD, boss fight.", zh: "reset、revert、游离 HEAD，以及最终 BOSS。" }, xp: 200 }
   ];
 
+  // Diploma-friendly difficulty tiers, independent of world/topic grouping.
+  // Basic + Intermediate is the core syllabus; Expert is bonus/advanced material.
+  const TIERS = {
+    basic:        { en: "Basic",        zh: "基础", color: "#34d399" },
+    intermediate: { en: "Intermediate", zh: "进阶", color: "#fbbf24" },
+    expert:       { en: "Expert",       zh: "高阶", color: "#fb7185" }
+  };
+
   const LEVELS = [
     // ==================== WORLD 1 ====================
     {
@@ -389,14 +397,176 @@
     }
   ];
 
+  // Guided answer: one explanation per command in `solution`, in order — the
+  // "how to think about this exact step" companion to the general hints above.
+  const WALKTHROUGH_BY_ID = {
+    "1-1": [
+      { en: "Commits whatever is staged (or the auto-generated placeholder) on top of HEAD, giving main a second commit — exactly what the goal asks for.",
+        zh: "把已暂存的内容（或自动生成的占位文件）提交到 HEAD 之上，让 main 拥有第二个提交——正是目标要求的。" }
+    ],
+    "1-2": [
+      { en: "`git checkout -b feature` creates the `feature` label at the current commit and switches HEAD onto it, without touching main.",
+        zh: "`git checkout -b feature` 在当前提交处创建 `feature` 标签，并把 HEAD 切过去，main 完全不受影响。" },
+      { en: "Committing while HEAD is on feature advances only feature's label — main is left exactly where it was.",
+        zh: "HEAD 停在 feature 时提交，只会推进 feature 的标签——main 保持原位。" }
+    ],
+    "1-3": [
+      { en: "`main~1` names the commit one step before main's tip, so branching from it skips the risky last commit entirely.",
+        zh: "`main~1` 指的是 main 顶端往前一步的那个提交，从它分支就完全绕开了那个有风险的最后提交。" },
+      { en: "Committing here builds hotfix's own single-commit history, independent of main's tip.",
+        zh: "在这里提交，为 hotfix 建立起独立于 main 顶端的单提交历史。" }
+    ],
+    "1-4": [
+      { en: "`git branch -f release main` force-moves the existing release label to wherever main currently points — no commit is created or changed.",
+        zh: "`git branch -f release main` 把已存在的 release 标签强制移到 main 当前所指的位置——不会创建或改变任何提交。" }
+    ],
+    "2-1": [
+      { en: "Since main never moved after feature branched off, merging feature while standing on main just slides main's label forward to feature's tip — a fast-forward, no merge commit.",
+        zh: "由于 feature 分出后 main 从未移动，站在 main 上合并 feature 只是把 main 的标签往前滑到 feature 顶端——这是快进，不会产生合并提交。" }
+    ],
+    "2-2": [
+      { en: "Both branches have moved on, so this merge creates a brand-new commit with two parents (main's tip and feature's tip) that ties both histories together.",
+        zh: "两条分支都各自前进了，这次合并会新建一个拥有两个父提交（main 顶端和 feature 顶端）的提交，把两段历史绑在一起。" }
+    ],
+    "2-3": [
+      { en: "Merging alpha into main first creates a merge commit whose parents are main's previous tip and alpha's tip.",
+        zh: "先把 alpha 合并进 main，产生一个父提交为“main 原顶端”和“alpha 顶端”的合并提交。" },
+      { en: "Merging beta next creates a second merge commit on top of that — main now carries the history of both alpha and beta.",
+        zh: "接着合并 beta，在此之上再产生一个合并提交——main 现在同时包含 alpha 和 beta 的历史。" }
+    ],
+    "2-4": [
+      { en: "`git merge X` always folds X into whichever branch you are standing on, so switching to feature first is what makes it the receiving branch.",
+        zh: "`git merge X` 永远是把 X 并进你当前所在的分支，所以先切到 feature 才能让它成为接收合并的一方。" },
+      { en: "Merging main into feature creates the merge commit on feature; main itself is only read, never moved.",
+        zh: "把 main 合并进 feature，会在 feature 上产生合并提交；main 只是被读取，本身不会移动。" }
+    ],
+    "3-1": [
+      { en: "Switching to feature makes it the branch whose commits get rewritten by the rebase.",
+        zh: "切换到 feature，让它的提交成为接下来变基时会被重写的对象。" },
+      { en: "`git rebase main` replays feature's commits one by one on top of main's current tip; each replay gets a new id (marked `'`), and the originals are abandoned.",
+        zh: "`git rebase main` 把 feature 的提交逐个重放到 main 当前顶端之上；每个重放出来的提交都会拿到新 id（带 `'` 号），原来的提交则被抛弃。" }
+    ],
+    "3-2": [
+      { en: "Switch to feature so the rebase that follows replays its commits, not main's.",
+        zh: "先切到 feature，接下来的变基才会重放它的提交，而不是 main 的。" },
+      { en: "Rebasing onto main puts feature's commits in a straight line right after main's tip.",
+        zh: "变基到 main，让 feature 的提交紧接在 main 顶端之后排成一条直线。" },
+      { en: "Switch back to main so it can be advanced next.",
+        zh: "切回 main，准备接下来推进它。" },
+      { en: "Because main is now an ancestor of feature, merging feature into main is a plain fast-forward — no merge commit appears anywhere.",
+        zh: "此时 main 已经是 feature 的祖先，把 feature 合并进 main 只是单纯的快进——全程不会出现合并提交。" }
+    ],
+    "3-3": [
+      { en: "`git rebase --onto main experiment feature` takes only the commits reachable from feature but not from experiment, and replays exactly those onto main — experiment's own commit is left untouched.",
+        zh: "`git rebase --onto main experiment feature` 只取出能从 feature 到达、但从 experiment 到达不了的那些提交，把它们精确地重放到 main 上——experiment 自己的提交完全不受影响。" }
+    ],
+    "3-4": [
+      { en: "`git cherry-pick C4` copies that single commit's changes onto the current branch as one new commit, leaving wip's other commits behind entirely.",
+        zh: "`git cherry-pick C4` 把这一个提交的改动复制到当前分支，生成一个新提交，wip 上的其他提交完全不会被带过来。" }
+    ],
+    "4-1": [
+      { en: "Starting the merge is what makes Git notice both sides edited config.txt; it pauses and writes conflict markers into the file instead of finishing.",
+        zh: "开始合并后，Git 发现双方都改了 config.txt，于是不会直接完成，而是暂停并在文件里写入冲突标记。" },
+      { en: "Resolving with --both keeps your line and theirs, yours first, exactly as the goal asks.",
+        zh: "用 --both 解决，会保留你的和对方的两行内容，且你的在前，正符合目标要求。" },
+      { en: "Staging the file tells Git you consider the conflict settled.",
+        zh: "暂存该文件，等于告诉 Git 冲突已经处理好了。" },
+      { en: "Committing finishes the merge, writing the two-parent merge commit onto main.",
+        zh: "提交以完成合并，在 main 上写下这个拥有两个父提交的合并提交。" }
+    ],
+    "4-2": [
+      { en: "The merge starts and immediately conflicts, because both main and feature changed api.txt differently.",
+        zh: "合并一开始就发生冲突，因为 main 和 feature 都各自改动了 api.txt。" },
+      { en: "\"Theirs\" means the branch being merged in — feature — so this keeps feature's endpoint and discards main's.",
+        zh: "“theirs”指被合并进来的一方——也就是 feature——所以这样做会保留 feature 的地址，丢弃 main 的。" },
+      { en: "Stages api.txt now that its content is settled.",
+        zh: "api.txt 内容已确定，暂存它。" },
+      { en: "Commits to complete the merge.",
+        zh: "提交完成合并。" }
+    ],
+    "4-3": [
+      { en: "Rebasing feature onto main starts replaying its one commit; the replay touches style.css differently from main and the rebase pauses there.",
+        zh: "把 feature 变基到 main，开始重放它唯一的提交；这次重放对 style.css 的改动和 main 不同，变基因此在此暂停。" },
+      { en: "During a rebase \"theirs\" is the commit being replayed — feature's own change — so this keeps feature's colour.",
+        zh: "变基过程中“theirs”指正在被重放的提交——也就是 feature 自己的改动——所以这样做会保留 feature 的颜色。" },
+      { en: "Stages the now-resolved file.",
+        zh: "暂存已解决好的文件。" },
+      { en: "`git rebase --continue` resumes the replay — a rebase is finished this way, never with a plain commit.",
+        zh: "`git rebase --continue` 让重放继续进行——变基要这样收尾，而不是用普通的 commit。" }
+    ],
+    "4-4": [
+      { en: "The merge starts and both version.txt and feature.txt conflict at the same time, independently of each other.",
+        zh: "合并一开始，version.txt 和 feature.txt 同时各自发生冲突，互不影响。" },
+      { en: "Resolving version.txt with --ours keeps the version already on main, the branch you are standing on.",
+        zh: "version.txt 用 --ours 解决，保留 main（你所在的分支）上原本的版本。" },
+      { en: "Resolving feature.txt with --theirs keeps the incoming feature branch's version instead.",
+        zh: "feature.txt 用 --theirs 解决，改为保留传入的 feature 分支版本。" },
+      { en: "Stages version.txt now that it holds the chosen content.",
+        zh: "version.txt 已是选定内容，暂存它。" },
+      { en: "Stages feature.txt the same way.",
+        zh: "同样地暂存 feature.txt。" },
+      { en: "Commits to finish the merge with both files resolved the requested way.",
+        zh: "提交以完成合并，两个文件都已按要求处理好。" }
+    ],
+    "5-1": [
+      { en: "`git reset --hard HEAD~2` moves main's label straight back two commits and rewrites the working tree to match — the two dead-end commits become unreachable, as if they never happened.",
+        zh: "`git reset --hard HEAD~2` 把 main 的标签直接后移两个提交，并让工作区回到那时的样子——那两个死路提交从此不可达，就像没发生过一样。" }
+    ],
+    "5-2": [
+      { en: "`git revert HEAD` writes a brand-new commit whose change is the exact opposite of the last commit's — the leak is undone without erasing the record that it happened.",
+        zh: "`git revert HEAD` 会新建一个提交，其改动正好是上一个提交的反操作——泄露被撤销了，但发生过的记录并没有被抹去。" }
+    ],
+    "5-3": [
+      { en: "`git branch rescue` labels the commit HEAD is currently detached at, without needing to move anywhere first — this is what keeps the loose commits from being lost.",
+        zh: "`git branch rescue` 直接给 HEAD 当前所在（游离）的提交打上标签，不需要先移动到别处——正是这一步保住了那些游离的提交。" },
+      { en: "`git checkout main` moves HEAD back onto a real branch, leaving detached HEAD behind.",
+        zh: "`git checkout main` 把 HEAD 移回一个真正的分支，从此离开游离状态。" }
+    ],
+    "5-4": [
+      { en: "Switch to feature so its commits are the ones about to be replayed.",
+        zh: "切到 feature，让它的提交成为接下来要被重放的对象。" },
+      { en: "Rebasing onto main starts replaying feature's commits; the app.js change collides with main's and the rebase pauses.",
+        zh: "变基到 main，开始重放 feature 的提交；app.js 的改动与 main 冲突，变基暂停。" },
+      { en: "\"Theirs\" during this rebase is the feature commit being replayed, so this keeps feature's version as the goal requires.",
+        zh: "这次变基中的“theirs”是正在被重放的 feature 提交，所以这样做会按要求保留 feature 的版本。" },
+      { en: "Stages the resolved app.js.",
+        zh: "暂存已解决好的 app.js。" },
+      { en: "`git rebase --continue` finishes replaying the remaining commit(s) onto main.",
+        zh: "`git rebase --continue` 让剩余提交继续重放到 main 之上。" },
+      { en: "Switch to main so it can be fast-forwarded next.",
+        zh: "切到 main，准备接下来让它快进。" },
+      { en: "With feature now a straight line ahead of main, merging it in is a fast-forward — main simply catches up, no merge commit.",
+        zh: "此时 feature 已是接在 main 之后的一条直线，合并它只是快进——main 直接追上去，不产生合并提交。" },
+      { en: "`git tag v1.0` pins the tag on whatever HEAD points at now — main's new tip — completing the release.",
+        zh: "`git tag v1.0` 把标签打在 HEAD 当前所指的提交上——也就是 main 的新顶端——完成发布。" }
+    ]
+  };
+
+  // Diploma track: everyday commit/branch/merge skills.
+  const BASIC_IDS = ["1-1", "1-2", "1-3", "1-4", "2-1", "2-2"];
+  // Diploma track: conflicts and undo that every student meets in a group project.
+  const INTERMEDIATE_IDS = ["2-3", "2-4", "4-1", "4-2", "4-3", "4-4", "5-1", "5-2"];
+  // Bonus/advanced: history rewriting and recovery, for stronger students.
+  const EXPERT_IDS = ["3-1", "3-2", "3-3", "3-4", "5-3", "5-4"];
+  const TIER_BY_ID = {};
+  BASIC_IDS.forEach((id) => (TIER_BY_ID[id] = "basic"));
+  INTERMEDIATE_IDS.forEach((id) => (TIER_BY_ID[id] = "intermediate"));
+  EXPERT_IDS.forEach((id) => (TIER_BY_ID[id] = "expert"));
+
   // Par = number of commands in the reference solution (used for stars).
   LEVELS.forEach((lv, i) => {
     lv.index = i;
     lv.par = lv.solution.length;
     lv.compare = Object.assign({ files: false, head: false }, lv.compare || {});
     lv.world = lv.world;
+    lv.tier = TIER_BY_ID[lv.id] || "basic";
+    lv.walkthrough = WALKTHROUGH_BY_ID[lv.id] || [];
+    if (lv.walkthrough.length !== lv.solution.length) {
+      throw new Error("Git Quest: walkthrough/solution length mismatch for " + lv.id);
+    }
   });
 
   global.GIT_WORLDS = WORLDS;
   global.GIT_LEVELS = LEVELS;
+  global.GIT_TIERS = TIERS;
 })(window);

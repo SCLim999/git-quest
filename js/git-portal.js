@@ -10,6 +10,8 @@
   const STORE = "pps2114-git-quest-v1";
   const LEVELS = window.GIT_LEVELS;
   const WORLDS = window.GIT_WORLDS;
+  const TIERS = window.GIT_TIERS;
+  const TIER_ORDER = ["basic", "intermediate", "expert"];
   const $ = (s) => document.querySelector(s);
 
   const RANKS = [
@@ -98,7 +100,8 @@
       emptyTree: "The working tree is empty.",
       studyGuideBtn: "Study Guide", studyGuideTitle: "Study guide",
       studyGuideBlurb: "Every level's reference answer and the reasoning behind it — read ahead, or review after playing.",
-      answerLabel: "Answer:", whyLabel: "Why:"
+      answerLabel: "Answer:", whyLabel: "Why:", levelsWord: "levels",
+      tierLegendNote: "Diploma track: Basic + Intermediate is the core syllabus. Expert is bonus/advanced material."
     },
     zh: {
       sandbox: "自由模式", wipe: "清空进度", mapTitle: "关卡地图", badgesTitle: "徽章",
@@ -136,7 +139,8 @@
       emptyTree: "工作区是空的。",
       studyGuideBtn: "学习指导", studyGuideTitle: "学习指导",
       studyGuideBlurb: "每一关的参考答案及其原理——可以先读一遍，也可以打完再复习。",
-      answerLabel: "答案：", whyLabel: "解析："
+      answerLabel: "答案：", whyLabel: "解析：", levelsWord: "关",
+      tierLegendNote: "专科课程建议：基础＋进阶是核心内容；高阶属于加分／进阶挑战。"
     }
   };
 
@@ -276,6 +280,7 @@
         if (lv.world !== w.id) return;
         const unlocked = isUnlocked(i);
         const st = stars(lv.id);
+        const tier = TIERS[lv.tier];
         const btn = document.createElement("button");
         btn.className = "gq-level" +
           (!unlocked ? " is-locked" : "") +
@@ -283,6 +288,7 @@
           (!state.sandbox && i === state.levelIndex ? " is-current" : "");
         btn.innerHTML =
           '<span class="gq-lv-id">' + lv.id + "</span>" +
+          '<span class="gq-tier-dot" style="background:' + tier.color + '" title="' + esc(tx(tier)) + '"></span>' +
           '<span class="gq-lv-name">' + esc(tx(lv.name)) + "</span>" +
           '<span class="gq-lv-stars">' + (unlocked ? "★".repeat(st) + "☆".repeat(3 - st) : "🔒") + "</span>";
         if (!unlocked) btn.title = t("locked");
@@ -291,6 +297,13 @@
       });
       map.appendChild(wrap);
     }
+    const legend = document.createElement("div");
+    legend.className = "gq-tier-legend";
+    legend.innerHTML = TIER_ORDER.map((k) =>
+      '<span class="gq-tier-legend-item"><span class="gq-tier-dot" style="background:' + TIERS[k].color + '"></span>' +
+      esc(tx(TIERS[k])) + "</span>").join("") +
+      '<p class="gq-world-blurb">' + esc(t("tierLegendNote")) + "</p>";
+    map.appendChild(legend);
     const totalStars = LEVELS.reduce((n, l) => n + stars(l.id), 0);
     const solved = LEVELS.filter((l) => (progress.levels[l.id] || {}).solved).length;
     $("#gq-map-summary").textContent = fmt(t("progressLabel"), solved, LEVELS.length, totalStars, LEVELS.length * 3);
@@ -746,24 +759,36 @@
 
   function showStudyGuide() {
     const root = $("#gq-modal-root");
-    const body = WORLDS.map((w) => {
-      const levels = LEVELS.filter((l) => l.world === w.id).map((lv) =>
-        '<div class="gq-guide-level">' +
-        '<div class="gq-guide-level-head"><span class="gq-lv-id">' + lv.id + '</span><b>' + esc(tx(lv.name)) + "</b></div>" +
-        '<p class="gq-guide-brief">' + mono(tx(lv.brief)) + "</p>" +
-        '<div class="gq-guide-goal">' + esc(t("goalLabel")) + " " + mono(tx(lv.goal)) + "</div>" +
-        '<div class="gq-guide-answer"><b>' + esc(t("answerLabel")) + '</b><pre>' + esc(lv.solution.join("\n")) + "</pre></div>" +
-        (lv.hints.length
-          ? '<div class="gq-guide-why"><b>' + esc(t("whyLabel")) + "</b><ul>" +
-            lv.hints.map((h) => "<li>" + mono(tx(h)) + "</li>").join("") + "</ul></div>"
-          : "") +
-        "</div>").join("");
-      return '<div class="gq-guide-world"><h3>' + esc(tx(w.name)) + "</h3>" + levels + "</div>";
+    const body = TIER_ORDER.map((tierKey) => {
+      const levels = LEVELS.filter((l) => l.tier === tierKey);
+      if (!levels.length) return "";
+      const tier = TIERS[tierKey];
+      const items = levels.map((lv) => {
+        const world = WORLDS.find((w) => w.id === lv.world);
+        return '<div class="gq-guide-level">' +
+          '<div class="gq-guide-level-head"><span class="gq-lv-id">' + lv.id + '</span><b>' + esc(tx(lv.name)) + "</b>" +
+          '<span class="gq-guide-world-tag">' + esc(tx(world.name)) + "</span></div>" +
+          '<p class="gq-guide-brief">' + mono(tx(lv.brief)) + "</p>" +
+          '<div class="gq-guide-goal">' + esc(t("goalLabel")) + " " + mono(tx(lv.goal)) + "</div>" +
+          '<div class="gq-guide-answer"><b>' + esc(t("answerLabel")) + "</b><ol>" +
+          lv.solution.map((cmd, si) =>
+            "<li><code>" + esc(cmd) + "</code><span>" + mono(tx(lv.walkthrough[si])) + "</span></li>").join("") +
+          "</ol></div>" +
+          (lv.hints.length
+            ? '<div class="gq-guide-why"><b>' + esc(t("whyLabel")) + "</b><ul>" +
+              lv.hints.map((h) => "<li>" + mono(tx(h)) + "</li>").join("") + "</ul></div>"
+            : "") +
+          "</div>";
+      }).join("");
+      return '<div class="gq-guide-world"><h3 style="color:' + tier.color + '">' +
+        '<span class="gq-tier-dot" style="background:' + tier.color + '"></span>' +
+        esc(tx(tier)) + " · " + levels.length + " " + esc(t("levelsWord")) + "</h3>" + items + "</div>";
     }).join("");
     root.innerHTML =
       '<div class="gq-modal-back"><div class="gq-modal gq-guide-modal">' +
       "<h2>" + esc(t("studyGuideTitle")) + "</h2>" +
       '<p style="margin-top:-4px">' + esc(t("studyGuideBlurb")) + "</p>" +
+      '<p class="gq-guide-note">' + esc(t("tierLegendNote")) + "</p>" +
       '<div class="gq-guide">' + body + "</div>" +
       '<div class="gq-modal-actions"><button class="gq-btn primary" id="gq-close">' + esc(t("close")) + "</button></div>" +
       "</div></div>";

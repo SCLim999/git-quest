@@ -163,6 +163,14 @@ body.gq {
 .gq-level.is-locked { opacity: 0.42; cursor: not-allowed; }
 .gq-level.is-locked:hover { transform: none; border-color: var(--gq-line); }
 
+.gq-tier-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.gq-tier-legend {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+  margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--gq-line);
+}
+.gq-tier-legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 0.74rem; color: var(--gq-muted); }
+.gq-tier-legend p.gq-world-blurb { flex-basis: 100%; margin: 4px 0 0; }
+
 /* ---------------- mission ---------------- */
 .gq-mission h2 {
   text-transform: none; letter-spacing: 0;
@@ -397,19 +405,32 @@ body.gq {
   border-bottom: 1px solid var(--gq-line); padding-bottom: 4px;
 }
 .gq-guide-world:first-child h3 { margin-top: 4px; }
+.gq-guide-world h3 .gq-tier-dot { margin-right: 6px; vertical-align: middle; }
 .gq-guide-level {
   background: var(--gq-panel-2); border: 1px solid var(--gq-line);
   border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
 }
-.gq-guide-level-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.gq-guide-level-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .gq-guide-level-head .gq-lv-id { font-family: var(--gq-mono); font-size: 0.72rem; color: var(--gq-muted); }
+.gq-guide-world-tag {
+  margin-left: auto; font-size: 0.68rem; color: var(--gq-muted);
+  background: var(--gq-panel-2); border: 1px solid var(--gq-line);
+  border-radius: 999px; padding: 1px 8px; white-space: nowrap;
+}
+.gq-guide-note { font-size: 0.82rem; color: var(--gq-amber); margin: 4px 0 0; }
 .gq-guide-brief { font-size: 0.86rem; color: #cfd7ef; margin: 4px 0; }
 .gq-guide-goal { font-size: 0.84rem; color: var(--gq-green); margin: 4px 0 8px; }
-.gq-guide-answer pre {
-  font-family: var(--gq-mono); font-size: 0.8rem; color: #7dd3fc;
-  background: #080d1c; border: 1px solid var(--gq-line); border-radius: 8px;
-  padding: 8px 10px; margin: 4px 0 8px; white-space: pre-wrap; word-break: break-word;
+.gq-guide-answer ol {
+  margin: 4px 0 8px; padding-left: 20px;
+  display: flex; flex-direction: column; gap: 6px;
 }
+.gq-guide-answer li { font-size: 0.82rem; }
+.gq-guide-answer li code {
+  display: inline-block; font-family: var(--gq-mono); font-size: 0.8rem; color: #7dd3fc;
+  background: #080d1c; border: 1px solid var(--gq-line); border-radius: 6px;
+  padding: 2px 7px; margin-bottom: 2px;
+}
+.gq-guide-answer li span { display: block; color: #cfd7ef; }
 .gq-guide-why ul { margin: 4px 0 0; padding-left: 18px; font-size: 0.82rem; color: var(--gq-muted); }
 .gq-guide-why li { margin-bottom: 3px; }
 
